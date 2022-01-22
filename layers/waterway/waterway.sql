@@ -248,7 +248,7 @@ SELECT geometry,
        NULL::boolean AS is_tunnel,
        NULL::boolean AS is_intermittent
 FROM osm_waterway_linestring WHERE waterway IN ('river', 'canal', 'stream')
-#osm_important_waterway_linestring_gen_z10
+-- osm_important_waterway_linestring_gen_z10
     );
 
 -- etldoc:osm_important_waterway_linestring_gen_z11 ->  waterway_z11
@@ -264,7 +264,7 @@ SELECT geometry,
        NULL::boolean AS is_tunnel,
        NULL::boolean AS is_intermittent
 FROM osm_waterway_linestring WHERE waterway IN ('river', 'canal', 'stream')
-#osm_important_waterway_linestring_gen_z11
+-- osm_important_waterway_linestring_gen_z11
     );
 
 -- etldoc: osm_waterway_linestring ->  waterway_z12
