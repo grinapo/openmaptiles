@@ -167,6 +167,10 @@ tracktype_field: &tracktype
   key: tracktype
   name: tracktype
   type: string
+cycleway_field: &cycleway
+  key: cycleway
+  name: cycleway
+  type: string
 
 tables:
 # etldoc: imposm3 -> osm_highway_linestring
@@ -216,6 +220,7 @@ tables:
     - *surface
     - *expressway
     - *tracktype
+    - *cycleway
     mapping:
       highway:
       - motorway
