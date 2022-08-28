@@ -39,7 +39,9 @@ layer:
         tertiary:
           highway: ['tertiary', 'tertiary_link']
         minor:
-          highway: ['unclassified', 'residential', 'living_street', 'road']
+          highway: ['unclassified', 'residential', 'road']
+        living_street:
+          highway: ['living_street']
         path:
           highway: ['pedestrian', 'path', 'footway', 'cycleway', 'steps', 'bridleway', 'corridor']
           public_transport: 'platform'
