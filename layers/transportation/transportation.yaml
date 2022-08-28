@@ -206,6 +206,15 @@ layer:
     cycleway:
       description: |
           Original value of the [`cycleway`](http://wiki.openstreetmap.org/wiki/Key:cycleway) tag.
+    cycleway_left:
+      description: |
+          Original wavlue of cycleway subtag.
+    cycleway_right:
+      description: |
+          Original wavlue of cycleway subtag.
+    cycleway_both:
+      description: |
+          Original wavlue of cycleway subtag.
   datasource:
     geometry_field: geometry
     srid: 900913
