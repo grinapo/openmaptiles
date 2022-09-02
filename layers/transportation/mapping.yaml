@@ -233,6 +233,9 @@ tables:
     - *expressway
     - *tracktype
     - *cycleway
+    - *cycleway_left
+    - *cycleway_right
+    - *cycleway_both
     mapping:
       highway:
       - motorway
