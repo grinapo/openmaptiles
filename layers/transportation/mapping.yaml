@@ -171,6 +171,18 @@ cycleway_field: &cycleway
   key: cycleway
   name: cycleway
   type: string
+cycleway_left_field: &cycleway_left
+  key: cycleway:left
+  name: cycleway_left
+  type: string
+cycleway_right_field: &cycleway_right
+  key: cycleway:right
+  name: cycleway_right
+  type: string
+cycleway_both_field: &cycleway_both
+  key: cycleway:both
+  name: cycleway_both
+  type: string
 
 tables:
 # etldoc: imposm3 -> osm_highway_linestring
