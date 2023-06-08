@@ -22,14 +22,26 @@ export PPORT
 # Local port to use with tileserver
 TPORT ?= 8080
 export TPORT
+STYLE_FILE := build/style/style.json
+STYLE_HEADER_FILE := style/style-header.json
+
+# Support newer `docker compose` syntax in addition to `docker-compose`
+
+ifeq (, $(shell which docker-compose))
+  DOCKER_COMPOSE_COMMAND := docker compose
+  $(info Using docker compose V2 (docker compose))
+else
+  DOCKER_COMPOSE_COMMAND := docker-compose
+  $(info Using docker compose V1 (docker-compose))
+endif
 
 # Allow a custom docker-compose project name
 DC_PROJECT := $(or $(DC_PROJECT),$(shell (. .env; echo $${DC_PROJECT})))
 ifeq ($(DC_PROJECT),)
   DC_PROJECT := $(notdir $(shell pwd))
-  DOCKER_COMPOSE := docker-compose
+  DOCKER_COMPOSE := $(DOCKER_COMPOSE_COMMAND)
 else
-  DOCKER_COMPOSE := docker-compose --project-name $(DC_PROJECT)
+  DOCKER_COMPOSE := $(DOCKER_COMPOSE_COMMAND) --project-name $(DC_PROJECT)
 endif
 
 # Make some operations quieter (e.g. inside the test script)
@@ -164,7 +176,7 @@ TPORT := $(or $(TPORT),$(shell (. .env; echo $${TPORT})),7)
 
 define HELP_MESSAGE
 ==============================================================================
- OpenMapTiles  https://github.com/openmaptiles/openmaptiles
+OpenMapTiles  https://github.com/openmaptiles/openmaptiles
 
 Hints for testing areas
   make list-geofabrik                  # list actual geofabrik OSM extracts for download -> <<your-area>>
@@ -231,7 +243,7 @@ export HELP_MESSAGE
 #
 
 .PHONY: all
-all: init-dirs build/openmaptiles.tm2source/data.yml build/mapping.yaml build-sql
+all: init-dirs build/openmaptiles.tm2source/data.yml build/mapping.yaml build-sql build-style
 
 .PHONY: help
 help:
@@ -253,6 +265,7 @@ endef
 init-dirs:
 	@mkdir -p build/sql/parallel
 	@mkdir -p build/openmaptiles.tm2source
+	@mkdir -p build/style
 	@mkdir -p data
 	@mkdir -p cache
 	@ ! ($(DOCKER_COMPOSE) 2>/dev/null run $(DC_OPTS) openmaptiles-tools df --output=fstype /tileset| grep -q 9p) < /dev/null || ($(win_fs_error))
@@ -279,6 +292,25 @@ ifeq (,$(wildcard build/sql/run_last.sql))
 							 --key --gzip --postgis-ver 3.0.1 \
 							 --function --fname=getmvt >> ./build/sql/run_last.sql'
 endif
+
+.PHONY: build-sprite
+build-sprite: init-dirs
+	$(DOCKER_COMPOSE) run $(DC_OPTS) openmaptiles-tools bash -c 'spritezero build/style/sprite /style/icons && \
+		spritezero --retina build/style/sprite@2x /style/icons'
+
+.PHONY: build-style
+build-style: init-dirs
+	$(DOCKER_COMPOSE) run $(DC_OPTS) openmaptiles-tools bash -c 'style-tools recompose $(TILESET_FILE) $(STYLE_FILE) \
+		$(STYLE_HEADER_FILE) && \
+		spritezero build/style/sprite /style/icons && spritezero --retina build/style/sprite@2x /style/icons'
+
+.PHONY: download-fonts
+download-fonts:
+	$(DOCKER_COMPOSE) run $(DC_OPTS) openmaptiles-tools bash -c '[ ! -d "/export/fonts" ] && mkdir /export/fonts && \
+		echo "Downloading fonts..." && wget -qO /export/noto-sans.zip --show-progress \
+		https://github.com/openmaptiles/fonts/releases/download/v2.0/noto-sans.zip && \
+		echo "Unzipping fonts..." && unzip -q /export/noto-sans.zip -d /export/fonts && rm /export/noto-sans.zip || \
+		echo "Fonts already exist."'
 
 .PHONY: clean
 clean: clean-test-data
@@ -458,7 +490,7 @@ generate-changed-tiles: data/tiles.txt
 	fi
 
 .PHONY: start-tileserver
-start-tileserver: init-dirs
+start-tileserver: init-dirs build-style download-fonts
 	@echo " "
 	@echo "***********************************************************"
 	@echo "* "
@@ -467,7 +499,7 @@ start-tileserver: init-dirs
 	@echo "* "
 	@echo "***********************************************************"
 	@echo " "
-	docker pull maptiler/tileserver-gl
+	$(DOCKER_COMPOSE_COMMAND) pull tileserver-gl
 	@echo " "
 	@echo "***********************************************************"
 	@echo "* "
@@ -584,9 +616,9 @@ else
 	@echo "Refreshing docker images... Use NO_REFRESH=1 to skip."
 ifneq ($(USE_PRELOADED_IMAGE),)
 	POSTGIS_IMAGE=openmaptiles/postgis-preloaded \
-		docker-compose pull --ignore-pull-failures $(QUIET_FLAG) openmaptiles-tools generate-vectortiles postgres
+		$(DOCKER_COMPOSE_COMMAND) pull --ignore-pull-failures $(QUIET_FLAG) openmaptiles-tools generate-vectortiles postgres
 else
-	docker-compose pull --ignore-pull-failures $(QUIET_FLAG) openmaptiles-tools generate-vectortiles postgres import-data
+	$(DOCKER_COMPOSE_COMMAND) pull --ignore-pull-failures $(QUIET_FLAG) openmaptiles-tools generate-vectortiles postgres import-data
 endif
 endif
 
@@ -611,7 +643,7 @@ test-perf-null: init-dirs
 
 .PHONY: build-test-pbf
 build-test-pbf: init-dirs
-	docker-compose run $(DC_OPTS) openmaptiles-tools /tileset/.github/workflows/build-test-data.sh
+	$(DOCKER_COMPOSE_COMMAND) run $(DC_OPTS) openmaptiles-tools /tileset/.github/workflows/build-test-data.sh
 
 .PHONY: debug
 debug:  ## Use this target when developing Makefile itself to verify loaded environment variables
@@ -653,11 +685,13 @@ test-sql: clean refresh-docker-images destroy-db start-db-nowait build/import-te
     	awk '1{print; fflush()} $$0~".*ERROR" {txt=$$0} END{ if(txt){print "\n*** ERROR detected, aborting:"; print txt; exit(1)} }'
 
 	@echo "Test SQL output for Import Test Data"
-	$(DOCKER_COMPOSE) $(DC_CONFIG_CACHE) run $(DC_OPTS_CACHE) openmaptiles-tools sh -c 'pgwait && psql.sh < tests/test-post-import.sql'
+	$(DOCKER_COMPOSE) $(DC_CONFIG_CACHE) run $(DC_OPTS_CACHE) openmaptiles-tools sh -c 'pgwait && psql.sh < tests/test-post-import.sql' 2>&1 | \
+		awk -v s="ERROR:" '1{print; fflush()} $$0~s{print "*** ERROR detected, aborting"; exit(1)}'
 
 	@echo "Run UPDATE process on test data..."
 	sed -ir "s/^[#]*\s*DIFF_MODE=.*/DIFF_MODE=true/" .env
 	$(DOCKER_COMPOSE) $(DC_CONFIG_CACHE) run $(DC_OPTS_CACHE) openmaptiles-tools sh -c 'pgwait && import-diff'
 
 	@echo "Test SQL output for Update Test Data"
-	$(DOCKER_COMPOSE) $(DC_CONFIG_CACHE) run $(DC_OPTS_CACHE) openmaptiles-tools sh -c 'pgwait && psql.sh < tests/test-post-update.sql'
+	$(DOCKER_COMPOSE) $(DC_CONFIG_CACHE) run $(DC_OPTS_CACHE) openmaptiles-tools sh -c 'pgwait && psql.sh < tests/test-post-update.sql' 2>&1 | \
+		awk -v s="ERROR:" '1{print; fflush()} $$0~s{print "*** ERROR detected, aborting"; exit(1)}'
